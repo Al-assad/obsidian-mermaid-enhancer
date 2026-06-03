@@ -10,6 +10,7 @@ node_modules/
 main.js
 main.js.map
 *.map
+mermaid-zoom.zip
 
 # OS files
 .DS_Store
