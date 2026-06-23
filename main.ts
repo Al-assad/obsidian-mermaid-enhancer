@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { loadMermaid, Plugin } from 'obsidian';
 
 interface ZoomState {
 	scale: number;
@@ -25,9 +25,13 @@ export default class MermaidZoomPlugin extends Plugin {
 	private mutationObserver?: MutationObserver;
 	private resizeObserver?: ResizeObserver;
 	private processedElements = new WeakSet<SVGSVGElement>();
+	private mermaidInstance?: any;
+	private originalMermaidRender?: (...args: any[]) => any;
 
-	onload() {
+	async onload() {
 		console.debug('Loading Mermaid Zoom plugin');
+
+		await this.patchMermaidRenderer();
 
 		// Set up observers
 		this.setupMutationObserver();
@@ -200,7 +204,7 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// 注册控件和交互，插件卸载时自动清理
 		this.register(this.createControls(container, contentWrapper, state));
-		this.register(this.addWheelZoom(container, contentWrapper, state));
+		this.register(this.addWheelPanAndZoom(container, contentWrapper, state));
 		this.register(this.addDragPan(container, contentWrapper, state));
 		this.register(this.addTouchGestures(container, contentWrapper, state));
 
@@ -213,7 +217,7 @@ export default class MermaidZoomPlugin extends Plugin {
 
 	private applyCodexMermaidStyle(svg: SVGSVGElement) {
 		svg.classList.add('mermaid-zoom-svg');
-		this.compactDecisionShapes(svg);
+		this.syncMermaidThemeStyles(svg);
 
 		for (const rect of Array.from(svg.querySelectorAll('rect'))) {
 			rect.setAttribute('rx', '8');
@@ -221,214 +225,67 @@ export default class MermaidZoomPlugin extends Plugin {
 		}
 	}
 
-	private compactDecisionShapes(svg: SVGSVGElement) {
-		const svgNS = 'http://www.w3.org/2000/svg';
-		const polygons = Array.from(svg.querySelectorAll<SVGPolygonElement>('.node polygon'));
+	private async patchMermaidRenderer() {
+		const mermaid = await loadMermaid();
+		if (this.originalMermaidRender) return;
 
-		for (const polygon of polygons) {
-			if (polygon.points.length < 4 || !polygon.parentElement) continue;
-
-			const label = polygon.parentElement.querySelector<SVGGElement>('.label');
-			const labelBox = label?.getBBox();
-			const labelTranslate = this.getSvgTranslate(label);
-			const horizontalPadding = 20;
-			const verticalPadding = 15;
-			const fallbackBounds = this.getPolygonBounds(polygon);
-
-			const x = labelBox
-				? labelTranslate.x + labelBox.x - horizontalPadding
-				: fallbackBounds.x;
-			const y = labelBox
-				? labelTranslate.y + labelBox.y - verticalPadding
-				: fallbackBounds.y;
-			const width = labelBox
-				? labelBox.width + horizontalPadding * 2
-				: fallbackBounds.width;
-			const height = labelBox
-				? labelBox.height + verticalPadding * 2
-				: fallbackBounds.height;
-
-			const rect = document.createElementNS(svgNS, 'rect');
-			rect.setAttribute('x', `${x}`);
-			rect.setAttribute('y', `${y}`);
-			rect.setAttribute('width', `${width}`);
-			rect.setAttribute('height', `${height}`);
-			rect.setAttribute('rx', '8');
-			rect.setAttribute('ry', '8');
-			rect.setAttribute('class', `${polygon.getAttribute('class') ?? ''} mermaid-zoom-decision-shape`.trim());
-
-			polygon.replaceWith(rect);
-			this.adjustDecisionEdges(svg, rect);
-		}
-
-		const oversizedRects = Array.from(svg.querySelectorAll<SVGRectElement>('.node > rect.label-container'));
-		for (const rect of oversizedRects) {
-			this.compactDecisionRect(svg, rect);
-		}
-
-		const nodeRects = Array.from(svg.querySelectorAll<SVGRectElement>('.node > rect.label-container'));
-		for (const rect of nodeRects) {
-			this.adjustDecisionEdges(svg, rect);
-		}
-	}
-
-	private getSvgTranslate(element: Element | null): { x: number; y: number } {
-		const transform = element?.getAttribute('transform') ?? '';
-		const match = transform.match(/translate\(\s*([-0-9.]+)(?:[,\s]+([-0-9.]+))?\s*\)/);
-		return {
-			x: match ? parseFloat(match[1]) || 0 : 0,
-			y: match && match[2] ? parseFloat(match[2]) || 0 : 0
+		this.mermaidInstance = mermaid;
+		this.originalMermaidRender = mermaid.render.bind(mermaid);
+		mermaid.render = (id: string, source: string, ...rest: any[]) => {
+			return this.originalMermaidRender?.(id, this.normalizeFlowchartDecisionNodes(source), ...rest);
 		};
 	}
 
-	private getPolygonBounds(polygon: SVGPolygonElement): { x: number; y: number; width: number; height: number } {
-		const points = Array.from(polygon.points);
-		const xs = points.map((point) => point.x);
-		const ys = points.map((point) => point.y);
-		const minX = Math.min(...xs);
-		const maxX = Math.max(...xs);
-		const minY = Math.min(...ys);
-		const maxY = Math.max(...ys);
+	private normalizeFlowchartDecisionNodes(source: string): string {
+		if (!this.isFlowchartSource(source)) return source;
 
-		return {
-			x: minX,
-			y: minY,
-			width: maxX - minX,
-			height: maxY - minY
-		};
-	}
-
-	private compactDecisionRect(svg: SVGSVGElement, rect: SVGRectElement) {
-		const node = rect.parentElement;
-		const label = node?.querySelector<SVGGElement>('.label');
-		const labelBox = label?.getBBox();
-		if (!labelBox || !label) return;
-
-		const labelTranslate = this.getSvgTranslate(label);
-		const horizontalPadding = 20;
-		const verticalPadding = 15;
-		const target = {
-			x: labelTranslate.x + labelBox.x - horizontalPadding,
-			y: labelTranslate.y + labelBox.y - verticalPadding,
-			width: labelBox.width + horizontalPadding * 2,
-			height: labelBox.height + verticalPadding * 2
-		};
-		const currentHeight = parseFloat(rect.getAttribute('height') ?? '0');
-		const isAlreadyDecision = rect.classList.contains('mermaid-zoom-decision-shape');
-		if (currentHeight <= target.height * 1.4 && !isAlreadyDecision) return;
-
-		rect.setAttribute('x', `${target.x}`);
-		rect.setAttribute('y', `${target.y}`);
-		rect.setAttribute('width', `${target.width}`);
-		rect.setAttribute('height', `${target.height}`);
-		rect.classList.add('mermaid-zoom-decision-shape');
-		this.adjustDecisionEdges(svg, rect);
-	}
-
-	private adjustDecisionEdges(svg: SVGSVGElement, rect: SVGRectElement) {
-		const node = rect.parentElement;
-		const nodeKey = this.getMermaidNodeKey(node);
-		if (!node || !nodeKey) return;
-
-		const nodeTranslate = this.getSvgTranslate(node);
-		const bounds = {
-			x: nodeTranslate.x + (parseFloat(rect.getAttribute('x') ?? '0') || 0),
-			y: nodeTranslate.y + (parseFloat(rect.getAttribute('y') ?? '0') || 0),
-			width: parseFloat(rect.getAttribute('width') ?? '0') || 0,
-			height: parseFloat(rect.getAttribute('height') ?? '0') || 0
-		};
-		if (bounds.width <= 0 || bounds.height <= 0) return;
-
-		const paths = Array.from(svg.querySelectorAll<SVGPathElement>('path.flowchart-link'));
-		for (const path of paths) {
-			if (this.isEdgeTarget(path, nodeKey)) {
-				this.adjustEdgeEndpoint(path, bounds, 'end');
-			} else if (this.isEdgeSource(path, nodeKey)) {
-				this.adjustEdgeEndpoint(path, bounds, 'start');
-			}
-		}
-	}
-
-	private getMermaidNodeKey(node: Element | null): string | null {
-		const id = node?.id ?? '';
-		const match = id.match(/^flowchart-(.+)-\d+$/);
-		return match?.[1] ?? null;
-	}
-
-	private isEdgeSource(path: SVGPathElement, nodeKey: string): boolean {
-		return path.id.startsWith(`L_${nodeKey}_`);
-	}
-
-	private isEdgeTarget(path: SVGPathElement, nodeKey: string): boolean {
-		return new RegExp(`^L_.+_${this.escapeRegExp(nodeKey)}_\\d+$`).test(path.id);
-	}
-
-	private escapeRegExp(value: string): string {
-		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	}
-
-	private adjustEdgeEndpoint(
-		path: SVGPathElement,
-		bounds: { x: number; y: number; width: number; height: number },
-		position: 'start' | 'end'
-	) {
-		const coordinates = this.getPathCoordinates(path);
-		if (coordinates.length < 2) return;
-
-		const endpointIndex = position === 'start' ? 0 : coordinates.length - 1;
-		const neighborIndex = position === 'start' ? 1 : coordinates.length - 2;
-		const endpoint = this.getRectConnectionPoint(bounds, coordinates[neighborIndex], position === 'end' ? 7 : 0);
-		const d = path.getAttribute('d') ?? '';
-		path.setAttribute('d', this.replacePathCoordinate(d, endpointIndex, endpoint));
-	}
-
-	private getPathCoordinates(path: SVGPathElement): Array<{ x: number; y: number }> {
-		const d = path.getAttribute('d') ?? '';
-		const coordinateRegex = /(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g;
-		return Array.from(d.matchAll(coordinateRegex)).map((match) => ({
-			x: parseFloat(match[1]),
-			y: parseFloat(match[2])
-		}));
-	}
-
-	private getRectConnectionPoint(
-		bounds: { x: number; y: number; width: number; height: number },
-		neighbor: { x: number; y: number },
-		offset: number
-	): { x: number; y: number } {
-		const centerX = bounds.x + bounds.width / 2;
-		const centerY = bounds.y + bounds.height / 2;
-		const dx = neighbor.x - centerX;
-		const dy = neighbor.y - centerY;
-		const halfWidth = bounds.width / 2;
-		const halfHeight = bounds.height / 2;
-
-		if (dx === 0 && dy === 0) {
-			return { x: centerX, y: centerY };
-		}
-
-		const tx = dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
-		const ty = dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
-		const t = Math.min(tx, ty);
-		const distance = Math.hypot(dx, dy);
-		const offsetRatio = distance === 0 ? 0 : offset / distance;
-
-		return {
-			x: centerX + dx * (t + offsetRatio),
-			y: centerY + dy * (t + offsetRatio)
-		};
-	}
-
-	private replacePathCoordinate(d: string, coordinateIndex: number, point: { x: number; y: number }): string {
-		let index = 0;
-		return d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (match) => {
-			if (index++ !== coordinateIndex) return match;
-			return `${this.formatSvgNumber(point.x)},${this.formatSvgNumber(point.y)}`;
+		return source.replace(/(^|[^A-Za-z0-9_-])([A-Za-z][A-Za-z0-9_-]*)\{([^{}\n]+)\}/g, (_match, prefix: string, nodeId: string, label: string) => {
+			return `${prefix}${nodeId}[${label}]`;
 		});
 	}
 
-	private formatSvgNumber(value: number): string {
-		return `${Math.round(value * 1000) / 1000}`;
+	private isFlowchartSource(source: string): boolean {
+		const firstMeaningfulLine = source
+			.split('\n')
+			.map((line) => line.trim())
+			.find((line) => line && !line.startsWith('%%'));
+
+		return /^(graph|flowchart)\b/.test(firstMeaningfulLine ?? '');
+	}
+
+	private syncMermaidThemeStyles(svg: SVGSVGElement) {
+		const container = svg.closest('.mermaid-zoom-container, .mermaid-zoom-modal') ?? document.body;
+		const computedStyle = getComputedStyle(container);
+		const nodeBg = computedStyle.getPropertyValue('--mermaid-zoom-node-bg').trim();
+		const nodeBorder = computedStyle.getPropertyValue('--mermaid-zoom-node-border').trim();
+		const textColor = computedStyle.getPropertyValue('--mermaid-zoom-text').trim();
+		const edgeColor = computedStyle.getPropertyValue('--mermaid-zoom-edge').trim();
+
+		if (!nodeBg || !nodeBorder || !textColor || !edgeColor) return;
+
+		for (const shape of Array.from(svg.querySelectorAll<SVGElement>('.node rect, .node circle, .node ellipse, .node polygon, .node path'))) {
+			shape.style.setProperty('fill', nodeBg, 'important');
+			shape.style.setProperty('stroke', nodeBorder, 'important');
+		}
+
+		for (const text of Array.from(svg.querySelectorAll<SVGElement>('text, .label, .label text, .nodeLabel, .edgeLabel, .cluster-label'))) {
+			text.style.setProperty('color', textColor, 'important');
+			text.style.setProperty('fill', textColor, 'important');
+		}
+
+		for (const htmlLabel of Array.from(svg.querySelectorAll<HTMLElement>('foreignObject div, foreignObject span, foreignObject p'))) {
+			htmlLabel.style.setProperty('color', textColor, 'important');
+			htmlLabel.style.setProperty('background', 'transparent', 'important');
+		}
+
+		for (const edge of Array.from(svg.querySelectorAll<SVGElement>('.edgePath .path, .flowchart-link, .messageLine0, .messageLine1, .loopLine, .relation'))) {
+			edge.style.setProperty('stroke', edgeColor, 'important');
+		}
+
+		for (const marker of Array.from(svg.querySelectorAll<SVGElement>('marker path, marker polygon'))) {
+			marker.style.setProperty('fill', edgeColor, 'important');
+			marker.style.setProperty('stroke', edgeColor, 'important');
+		}
 	}
 
 	private fitToContainer(container: HTMLElement, contentWrapper: HTMLElement, svg: SVGSVGElement, state: ZoomState) {
@@ -560,7 +417,7 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// 注册模态框交互，收集清理函数以便关闭时移除
 		const modalCleanupFns: (() => void)[] = [];
-		modalCleanupFns.push(this.addWheelZoom(modalZoomContainer, modalContentWrapper, modalState));
+		modalCleanupFns.push(this.addWheelPanAndZoom(modalZoomContainer, modalContentWrapper, modalState));
 		modalCleanupFns.push(this.addDragPan(modalZoomContainer, modalContentWrapper, modalState));
 		modalCleanupFns.push(this.addTouchGestures(modalZoomContainer, modalContentWrapper, modalState));
 
@@ -845,21 +702,30 @@ export default class MermaidZoomPlugin extends Plugin {
 		};
 	}
 
-	private addWheelZoom(container: HTMLElement, contentWrapper: HTMLElement, state: ZoomState): () => void {
+	private addWheelPanAndZoom(container: HTMLElement, contentWrapper: HTMLElement, state: ZoomState): () => void {
 		const wheelHandler = (e: WheelEvent) => {
 			e.preventDefault();
+
+			const { deltaX, deltaY } = this.normalizeWheelDelta(e, container);
+
+			if (!e.metaKey && !e.ctrlKey) {
+				state.translateX -= deltaX;
+				state.translateY -= deltaY;
+				this.updateTransform(contentWrapper, state);
+				return;
+			}
+
+			if (deltaY === 0) return;
 
 			const rect = container.getBoundingClientRect();
 			const mouseX = e.clientX - rect.left;
 			const mouseY = e.clientY - rect.top;
 
-			const delta = e.deltaY > 0 ? 0.9 : 1.1;
 			const oldScale = state.scale;
-			let newScale = oldScale * delta;
+			let newScale = oldScale * Math.exp(-deltaY * 0.0015);
 			newScale = Math.max(state.minScale, Math.min(state.maxScale, newScale));
 
 			if (newScale !== oldScale) {
-				// 根据鼠标位置调整缩放平移
 				const scaleRatio = newScale / oldScale;
 				state.translateX = mouseX - (mouseX - state.translateX) * scaleRatio;
 				state.translateY = mouseY - (mouseY - state.translateY) * scaleRatio;
@@ -871,6 +737,20 @@ export default class MermaidZoomPlugin extends Plugin {
 		container.addEventListener('wheel', wheelHandler, { passive: false });
 
 		return () => container.removeEventListener('wheel', wheelHandler);
+	}
+
+	private normalizeWheelDelta(e: WheelEvent, container: HTMLElement): { deltaX: number; deltaY: number } {
+		let multiplier = 1;
+		if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+			multiplier = 16;
+		} else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+			multiplier = container.clientHeight || 800;
+		}
+
+		return {
+			deltaX: e.deltaX * multiplier,
+			deltaY: e.deltaY * multiplier
+		};
 	}
 
 	private addDragPan(container: HTMLElement, contentWrapper: HTMLElement, state: ZoomState): () => void {
@@ -1022,5 +902,11 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		this.zoomStates.clear();
 		this.processedElements = new WeakSet();
+
+		if (this.mermaidInstance && this.originalMermaidRender) {
+			this.mermaidInstance.render = this.originalMermaidRender;
+			this.originalMermaidRender = undefined;
+			this.mermaidInstance = undefined;
+		}
 	}
 }

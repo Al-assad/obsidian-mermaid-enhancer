@@ -15,13 +15,13 @@
 }
 
 .theme-dark {
-	--mermaid-zoom-card-bg: #181818;
-	--mermaid-zoom-card-border: #2c2c2c;
+	--mermaid-zoom-card-bg: #141414;
+	--mermaid-zoom-card-border: #2a2a2a;
 	--mermaid-zoom-card-shadow: none;
 	--mermaid-zoom-text: #d8d8d8;
 	--mermaid-zoom-muted: #8f8f8f;
-	--mermaid-zoom-node-bg: #303030;
-	--mermaid-zoom-node-border: #3f3f3f;
+	--mermaid-zoom-node-bg: #282828;
+	--mermaid-zoom-node-border: #2f2f2f;
 	--mermaid-zoom-edge: #9a9a9a;
 	--mermaid-zoom-control-bg: rgba(44, 44, 44, 0.86);
 	--mermaid-zoom-control-hover: rgba(58, 58, 58, 0.95);
@@ -231,12 +231,22 @@
 .mermaid-zoom-svg .label,
 .mermaid-zoom-svg .label text,
 .mermaid-zoom-svg .nodeLabel,
+.mermaid-zoom-svg .nodeLabel p,
 .mermaid-zoom-svg .edgeLabel,
 .mermaid-zoom-svg .edgeLabel span,
+.mermaid-zoom-svg .edgeLabel p,
 .mermaid-zoom-svg .cluster-label,
 .mermaid-zoom-svg .cluster-label span {
 	color: var(--mermaid-zoom-text) !important;
 	fill: var(--mermaid-zoom-text) !important;
+}
+
+.mermaid-zoom-svg .label foreignObject,
+.mermaid-zoom-svg .label foreignObject div,
+.mermaid-zoom-svg .label foreignObject span,
+.mermaid-zoom-svg .label foreignObject p {
+	color: var(--mermaid-zoom-text) !important;
+	background: transparent !important;
 }
 
 .mermaid-zoom-svg .edgeLabel,

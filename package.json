@@ -1,5 +1,5 @@
 {
-  "name": "mermaid-zoom",
+  "name": "obsidian-mermaid-enhancer",
   "version": "1.1.3",
   "description": "Add zoom functionality to Mermaid diagrams in Obsidian",
   "scripts": {
