@@ -31,7 +31,7 @@ jobs:
       - run: npm run build
 
       - name: Package zip
-        run: zip mermaid-zoom.zip main.js manifest.json styles.css LICENSE
+        run: zip codex-mermaid-enhancer.zip main.js manifest.json styles.css LICENSE
 
       - name: Determine version
         id: version
@@ -63,4 +63,4 @@ jobs:
           gh release create "$tag" \
             --title "$tag" \
             --generate-notes \
-            mermaid-zoom.zip main.js manifest.json styles.css
+            codex-mermaid-enhancer.zip main.js manifest.json styles.css

@@ -1,88 +1,99 @@
-# Mermaid Zoom
+# Codex Mermaid Enhancer
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+Codex Mermaid Enhancer improves Mermaid diagrams in Obsidian with a cleaner Codex-style visual treatment and interaction model designed for trackpads and Apple Magic Mouse.
 
-An Obsidian plugin that adds zoom and pan functionality to Mermaid diagrams.
+It is based on the original Mermaid Zoom plugin, but changes the default desktop behavior from wheel-to-zoom to pan-first navigation.
 
-![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fxiaozhuang0433%2Fmermaid-zoom%2Fmain%2Fmanifest.json&query=$.version&prefix=v&label=version&color=2D9CDB)
+![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FAl-assad%2Fobsidian-mermaid-enhancer%2Fmain%2Fmanifest.json&query=$.version&prefix=v&label=version&color=2D9CDB)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
+## Preview
+
+### Light mode
+
+![Codex Mermaid Enhancer light mode preview](assets/light.png)
+
+### Dark mode
+
+![Codex Mermaid Enhancer dark mode preview](assets/dark.png)
 
 ## Features
 
-- **Mouse Wheel Zoom** - Scroll over any Mermaid diagram to zoom in and out
-- **Drag to Pan** - Click and drag to move around your diagrams
-- **Touch Gestures** - Pinch to zoom and drag to pan on mobile devices
-- **Control Buttons** - Quick access to zoom in, zoom out, and reset buttons
-- **Scale Indicator** - Real-time display of current zoom level
-- **Fullscreen Mode** - Open diagrams in a modal for better viewing
+- **Codex-style diagrams**: rounded diagram cards, subdued borders, and light/dark colors tuned for Obsidian.
+- **Pan-first wheel interaction**: scroll over a diagram to move it instead of accidentally zooming.
+- **Shortcut zoom**: hold `Cmd` on macOS or `Ctrl` on other platforms while scrolling to zoom at the pointer position.
+- **Drag to pan**: click and drag to move around large diagrams.
+- **Control buttons**: use `+`, `-`, reset, and fullscreen controls when precise actions are easier than gestures.
+- **Fullscreen view**: open a diagram in a modal with the same pan and zoom behavior.
+- **Touch gestures**: pinch to zoom and drag to pan on touch devices.
+- **Flowchart decision cleanup**: flowchart decision nodes are normalized before Mermaid renders them, keeping edges connected while matching the rounded-card visual style.
 
 ## Installation
 
-### Obsidian Plugin Market (Coming Soon)
+### BRAT
 
-Once approved, install directly from Obsidian's community plugins browser.
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin.
+2. Add this repository as a beta plugin:
+   ```
+   https://github.com/Al-assad/obsidian-mermaid-enhancer
+   ```
+3. Enable **Codex Mermaid Enhancer** in Obsidian settings.
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/xiaozhuang0433/mermaid-zoom/releases)
-2. Extract to your vault's plugins directory:
+1. Download the latest release from [GitHub Releases](https://github.com/Al-assad/obsidian-mermaid-enhancer/releases).
+2. Extract the release files into:
+   ```text
+   <your-vault>/.obsidian/plugins/codex-mermaid-enhancer
    ```
-   <your-vault>/.obsidian/plugins/mermaid-zoom
+3. Enable **Codex Mermaid Enhancer** from Obsidian:
+   ```text
+   Settings -> Community plugins -> Installed plugins
    ```
-3. Enable the plugin in Obsidian:
-   - Settings → Community Plugins
-   - Find "Mermaid Zoom" and enable it
 
 ## Usage
 
-### Mouse Controls
+### Desktop Controls
 
-| Action | Description |
-|--------|-------------|
-| **Zoom** | Hover over a Mermaid diagram and scroll the mouse wheel |
-| **Pan** | Click and drag to move the diagram |
-| **Fullscreen** | Click the fullscreen button to open in modal view |
+| Action | Gesture |
+| --- | --- |
+| Pan | Scroll over the diagram |
+| Zoom | Hold `Cmd` or `Ctrl` and scroll |
+| Pan by drag | Left-click and drag |
+| Zoom in | Click `+` |
+| Zoom out | Click `-` |
+| Reset | Click `reset` to fit the diagram back into the card |
+| Fullscreen | Click the fullscreen button |
 
-### Touch Controls (Mobile)
+### Touch Controls
 
-| Action | Description |
-|--------|-------------|
-| **Zoom** | Pinch with two fingers |
-| **Pan** | Drag with one finger |
-
-### Control Buttons
-
-Located in the bottom-right corner of each diagram:
-
-- **`+`** - Zoom in
-- **`-`** - Zoom out
-- **`⟲`** - Reset to fit
-- **`⛶`** - Toggle fullscreen
+| Action | Gesture |
+| --- | --- |
+| Pan | Drag with one finger |
+| Zoom | Pinch with two fingers |
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Development mode (watch for changes)
 npm run dev
-
-# Production build
 npm run build
 ```
 
-## How It Works
+The plugin is implemented mainly in `main.ts` and styles are in `styles.css`.
 
-The plugin automatically detects all Mermaid diagrams rendered in Obsidian and wraps each one in a zoomable container. Zoom range is configurable from 10% to 500%.
+## Release Files
 
-Original SVG dimensions are cached to ensure consistent scaling behavior when resetting or resizing.
+Each release should include:
+
+```text
+main.js
+manifest.json
+styles.css
+```
 
 ## License
 
-[MIT](LICENSE) © [Wang Xiao Zhuang](https://github.com/xiaozhuang0433)
+[MIT](LICENSE)
 
-## Support
-
-- Issues: [GitHub Issues](https://github.com/xiaozhuang0433/mermaid-zoom/issues)
-- Discussions: [GitHub Discussions](https://github.com/xiaozhuang0433/mermaid-zoom/discussions)
+This project is a fork of [xiaozhuang0433/mermaid-zoom](https://github.com/xiaozhuang0433/mermaid-zoom).
