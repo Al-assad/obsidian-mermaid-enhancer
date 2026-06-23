@@ -1,6 +1,6 @@
 {
   "name": "codex-mermaid-enhancer",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "description": "Codex-style Mermaid diagrams with pan-first navigation, shortcut zoom, fullscreen viewing, and touch gestures.",
   "scripts": {
     "dev": "node esbuild.config.mjs",
