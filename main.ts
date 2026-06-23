@@ -114,7 +114,10 @@ export default class MermaidZoomPlugin extends Plugin {
 		}
 
 		for (const svg of mermaidSvgs) {
-			if (!this.processedElements.has(svg) && !this.hasZoomContainer(svg)) {
+			if (this.hasZoomContainer(svg)) {
+				this.applyCodexMermaidStyle(svg);
+				this.processedElements.add(svg);
+			} else if (!this.processedElements.has(svg)) {
 				this.wrapMermaidWithZoom(svg);
 				this.processedElements.add(svg);
 			}
@@ -132,7 +135,10 @@ export default class MermaidZoomPlugin extends Plugin {
 		// Find all mermaid SVGs - Obsidian uses .mermaid container with SVG inside
 		const mermaidSvgs = document.querySelectorAll('.mermaid svg, svg[id^="mermaid-"]');
 		for (const mermaidSvg of Array.from(mermaidSvgs) as SVGSVGElement[]) {
-			if (!this.processedElements.has(mermaidSvg) && !this.hasZoomContainer(mermaidSvg)) {
+			if (this.hasZoomContainer(mermaidSvg)) {
+				this.applyCodexMermaidStyle(mermaidSvg);
+				this.processedElements.add(mermaidSvg);
+			} else if (!this.processedElements.has(mermaidSvg)) {
 				this.wrapMermaidWithZoom(mermaidSvg);
 				this.processedElements.add(mermaidSvg);
 			}
@@ -141,6 +147,8 @@ export default class MermaidZoomPlugin extends Plugin {
 
 	wrapMermaidWithZoom(svg: SVGSVGElement) {
 		if (!svg.parentElement) return;
+
+		this.applyCodexMermaidStyle(svg);
 
 		// Find the original .mermaid container
 		const mermaidContainer = svg.closest('.mermaid') as HTMLElement;
@@ -159,29 +167,10 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// Create zoom container
 		const container = createDiv('mermaid-zoom-container');
-		container.style.cssText = `
-			position: relative;
-			overflow: hidden;
-			width: 100%;
-			height: ${containerHeight}px;
-			min-width: 150px;
-			min-height: 100px;
-			background: var(--background-secondary);
-			border-radius: 8px;
-			border: 1px solid var(--background-modifier-border);
-			margin: 1em 0;
-			padding: 1em;
-			padding-bottom: 2.5em;
-			box-sizing: border-box;
-		`;
+		container.style.height = `${containerHeight}px`;
 
 		// Create content wrapper for transformations
 		const contentWrapper = container.createDiv('mermaid-zoom-content');
-		contentWrapper.style.cssText = `
-			transform-origin: 0 0;
-			transition: transform 0.1s ease-out;
-			width: fit-content;
-		`;
 
 		// Insert container and move content inside
 		targetParent.insertBefore(container, targetElement);
@@ -220,6 +209,226 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// Re-fit on container resize
 		this.resizeObserver?.observe(container);
+	}
+
+	private applyCodexMermaidStyle(svg: SVGSVGElement) {
+		svg.classList.add('mermaid-zoom-svg');
+		this.compactDecisionShapes(svg);
+
+		for (const rect of Array.from(svg.querySelectorAll('rect'))) {
+			rect.setAttribute('rx', '8');
+			rect.setAttribute('ry', '8');
+		}
+	}
+
+	private compactDecisionShapes(svg: SVGSVGElement) {
+		const svgNS = 'http://www.w3.org/2000/svg';
+		const polygons = Array.from(svg.querySelectorAll<SVGPolygonElement>('.node polygon'));
+
+		for (const polygon of polygons) {
+			if (polygon.points.length < 4 || !polygon.parentElement) continue;
+
+			const label = polygon.parentElement.querySelector<SVGGElement>('.label');
+			const labelBox = label?.getBBox();
+			const labelTranslate = this.getSvgTranslate(label);
+			const horizontalPadding = 20;
+			const verticalPadding = 15;
+			const fallbackBounds = this.getPolygonBounds(polygon);
+
+			const x = labelBox
+				? labelTranslate.x + labelBox.x - horizontalPadding
+				: fallbackBounds.x;
+			const y = labelBox
+				? labelTranslate.y + labelBox.y - verticalPadding
+				: fallbackBounds.y;
+			const width = labelBox
+				? labelBox.width + horizontalPadding * 2
+				: fallbackBounds.width;
+			const height = labelBox
+				? labelBox.height + verticalPadding * 2
+				: fallbackBounds.height;
+
+			const rect = document.createElementNS(svgNS, 'rect');
+			rect.setAttribute('x', `${x}`);
+			rect.setAttribute('y', `${y}`);
+			rect.setAttribute('width', `${width}`);
+			rect.setAttribute('height', `${height}`);
+			rect.setAttribute('rx', '8');
+			rect.setAttribute('ry', '8');
+			rect.setAttribute('class', `${polygon.getAttribute('class') ?? ''} mermaid-zoom-decision-shape`.trim());
+
+			polygon.replaceWith(rect);
+			this.adjustDecisionEdges(svg, rect);
+		}
+
+		const oversizedRects = Array.from(svg.querySelectorAll<SVGRectElement>('.node > rect.label-container'));
+		for (const rect of oversizedRects) {
+			this.compactDecisionRect(svg, rect);
+		}
+
+		const nodeRects = Array.from(svg.querySelectorAll<SVGRectElement>('.node > rect.label-container'));
+		for (const rect of nodeRects) {
+			this.adjustDecisionEdges(svg, rect);
+		}
+	}
+
+	private getSvgTranslate(element: Element | null): { x: number; y: number } {
+		const transform = element?.getAttribute('transform') ?? '';
+		const match = transform.match(/translate\(\s*([-0-9.]+)(?:[,\s]+([-0-9.]+))?\s*\)/);
+		return {
+			x: match ? parseFloat(match[1]) || 0 : 0,
+			y: match && match[2] ? parseFloat(match[2]) || 0 : 0
+		};
+	}
+
+	private getPolygonBounds(polygon: SVGPolygonElement): { x: number; y: number; width: number; height: number } {
+		const points = Array.from(polygon.points);
+		const xs = points.map((point) => point.x);
+		const ys = points.map((point) => point.y);
+		const minX = Math.min(...xs);
+		const maxX = Math.max(...xs);
+		const minY = Math.min(...ys);
+		const maxY = Math.max(...ys);
+
+		return {
+			x: minX,
+			y: minY,
+			width: maxX - minX,
+			height: maxY - minY
+		};
+	}
+
+	private compactDecisionRect(svg: SVGSVGElement, rect: SVGRectElement) {
+		const node = rect.parentElement;
+		const label = node?.querySelector<SVGGElement>('.label');
+		const labelBox = label?.getBBox();
+		if (!labelBox || !label) return;
+
+		const labelTranslate = this.getSvgTranslate(label);
+		const horizontalPadding = 20;
+		const verticalPadding = 15;
+		const target = {
+			x: labelTranslate.x + labelBox.x - horizontalPadding,
+			y: labelTranslate.y + labelBox.y - verticalPadding,
+			width: labelBox.width + horizontalPadding * 2,
+			height: labelBox.height + verticalPadding * 2
+		};
+		const currentHeight = parseFloat(rect.getAttribute('height') ?? '0');
+		const isAlreadyDecision = rect.classList.contains('mermaid-zoom-decision-shape');
+		if (currentHeight <= target.height * 1.4 && !isAlreadyDecision) return;
+
+		rect.setAttribute('x', `${target.x}`);
+		rect.setAttribute('y', `${target.y}`);
+		rect.setAttribute('width', `${target.width}`);
+		rect.setAttribute('height', `${target.height}`);
+		rect.classList.add('mermaid-zoom-decision-shape');
+		this.adjustDecisionEdges(svg, rect);
+	}
+
+	private adjustDecisionEdges(svg: SVGSVGElement, rect: SVGRectElement) {
+		const node = rect.parentElement;
+		const nodeKey = this.getMermaidNodeKey(node);
+		if (!node || !nodeKey) return;
+
+		const nodeTranslate = this.getSvgTranslate(node);
+		const bounds = {
+			x: nodeTranslate.x + (parseFloat(rect.getAttribute('x') ?? '0') || 0),
+			y: nodeTranslate.y + (parseFloat(rect.getAttribute('y') ?? '0') || 0),
+			width: parseFloat(rect.getAttribute('width') ?? '0') || 0,
+			height: parseFloat(rect.getAttribute('height') ?? '0') || 0
+		};
+		if (bounds.width <= 0 || bounds.height <= 0) return;
+
+		const paths = Array.from(svg.querySelectorAll<SVGPathElement>('path.flowchart-link'));
+		for (const path of paths) {
+			if (this.isEdgeTarget(path, nodeKey)) {
+				this.adjustEdgeEndpoint(path, bounds, 'end');
+			} else if (this.isEdgeSource(path, nodeKey)) {
+				this.adjustEdgeEndpoint(path, bounds, 'start');
+			}
+		}
+	}
+
+	private getMermaidNodeKey(node: Element | null): string | null {
+		const id = node?.id ?? '';
+		const match = id.match(/^flowchart-(.+)-\d+$/);
+		return match?.[1] ?? null;
+	}
+
+	private isEdgeSource(path: SVGPathElement, nodeKey: string): boolean {
+		return path.id.startsWith(`L_${nodeKey}_`);
+	}
+
+	private isEdgeTarget(path: SVGPathElement, nodeKey: string): boolean {
+		return new RegExp(`^L_.+_${this.escapeRegExp(nodeKey)}_\\d+$`).test(path.id);
+	}
+
+	private escapeRegExp(value: string): string {
+		return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	private adjustEdgeEndpoint(
+		path: SVGPathElement,
+		bounds: { x: number; y: number; width: number; height: number },
+		position: 'start' | 'end'
+	) {
+		const coordinates = this.getPathCoordinates(path);
+		if (coordinates.length < 2) return;
+
+		const endpointIndex = position === 'start' ? 0 : coordinates.length - 1;
+		const neighborIndex = position === 'start' ? 1 : coordinates.length - 2;
+		const endpoint = this.getRectConnectionPoint(bounds, coordinates[neighborIndex], position === 'end' ? 7 : 0);
+		const d = path.getAttribute('d') ?? '';
+		path.setAttribute('d', this.replacePathCoordinate(d, endpointIndex, endpoint));
+	}
+
+	private getPathCoordinates(path: SVGPathElement): Array<{ x: number; y: number }> {
+		const d = path.getAttribute('d') ?? '';
+		const coordinateRegex = /(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g;
+		return Array.from(d.matchAll(coordinateRegex)).map((match) => ({
+			x: parseFloat(match[1]),
+			y: parseFloat(match[2])
+		}));
+	}
+
+	private getRectConnectionPoint(
+		bounds: { x: number; y: number; width: number; height: number },
+		neighbor: { x: number; y: number },
+		offset: number
+	): { x: number; y: number } {
+		const centerX = bounds.x + bounds.width / 2;
+		const centerY = bounds.y + bounds.height / 2;
+		const dx = neighbor.x - centerX;
+		const dy = neighbor.y - centerY;
+		const halfWidth = bounds.width / 2;
+		const halfHeight = bounds.height / 2;
+
+		if (dx === 0 && dy === 0) {
+			return { x: centerX, y: centerY };
+		}
+
+		const tx = dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx);
+		const ty = dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy);
+		const t = Math.min(tx, ty);
+		const distance = Math.hypot(dx, dy);
+		const offsetRatio = distance === 0 ? 0 : offset / distance;
+
+		return {
+			x: centerX + dx * (t + offsetRatio),
+			y: centerY + dy * (t + offsetRatio)
+		};
+	}
+
+	private replacePathCoordinate(d: string, coordinateIndex: number, point: { x: number; y: number }): string {
+		let index = 0;
+		return d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, (match) => {
+			if (index++ !== coordinateIndex) return match;
+			return `${this.formatSvgNumber(point.x)},${this.formatSvgNumber(point.y)}`;
+		});
+	}
+
+	private formatSvgNumber(value: number): string {
+		return `${Math.round(value * 1000) / 1000}`;
 	}
 
 	private fitToContainer(container: HTMLElement, contentWrapper: HTMLElement, svg: SVGSVGElement, state: ZoomState) {
@@ -264,83 +473,32 @@ export default class MermaidZoomPlugin extends Plugin {
 		// Create modal overlay
 		const modal = document.createElement('div');
 		modal.className = 'mermaid-zoom-modal';
-		modal.style.cssText = `
-			position: fixed;
-			top: 0;
-			left: 0;
-			width: 100vw;
-			height: 100vh;
-			background: var(--background-primary);
-			z-index: 9999;
-			display: flex;
-			flex-direction: column;
-		`;
 
 		// Create header with close button
 		const header = document.createElement('div');
 		header.className = 'mermaid-zoom-modal-header';
-		header.style.cssText = `
-			display: flex;
-			justify-content: flex-end;
-			padding: 10px 15px;
-			background: var(--background-secondary);
-			border-bottom: 1px solid var(--background-modifier-border);
-		`;
 
 		// Close button
 		const closeBtn = document.createElement('button');
 		closeBtn.className = 'mermaid-zoom-modal-close';
 		closeBtn.textContent = '✕';
-		closeBtn.style.cssText = `
-			width: 32px;
-			height: 32px;
-			border: none;
-			background: var(--interactive-normal);
-			color: var(--text-normal);
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 18px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			transition: background 0.2s;
-		`;
 		header.appendChild(closeBtn);
 
 		// Create content area
 		const content = document.createElement('div');
 		content.className = 'mermaid-zoom-modal-content';
-		content.style.cssText = `
-			flex: 1;
-			overflow: hidden;
-			position: relative;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-		`;
 
 		// Create zoom container inside modal
 		const modalZoomContainer = document.createElement('div');
 		modalZoomContainer.className = 'mermaid-zoom-modal-zoom-container';
-		modalZoomContainer.style.cssText = `
-			width: 100%;
-			height: 100%;
-			overflow: hidden;
-			position: relative;
-		`;
 
 		// Create content wrapper for transformations
 		const modalContentWrapper = document.createElement('div');
 		modalContentWrapper.className = 'mermaid-zoom-modal-wrapper';
-		modalContentWrapper.style.cssText = `
-			transform-origin: 0 0;
-			transition: transform 0.1s ease-out;
-			width: fit-content;
-			position: absolute;
-		`;
 
 		// Clone the SVG
 		const svgClone = state.svg.cloneNode(true) as SVGSVGElement;
+		this.applyCodexMermaidStyle(svgClone);
 		modalContentWrapper.appendChild(svgClone);
 		modalZoomContainer.appendChild(modalContentWrapper);
 		content.appendChild(modalZoomContainer);
@@ -348,17 +506,6 @@ export default class MermaidZoomPlugin extends Plugin {
 		// Create modal controls
 		const controls = document.createElement('div');
 		controls.className = 'mermaid-zoom-modal-controls';
-		controls.style.cssText = `
-			position: absolute;
-			bottom: 20px;
-			right: 20px;
-			display: flex;
-			gap: 5px;
-			background: var(--background-secondary);
-			padding: 8px;
-			border-radius: 8px;
-			box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-		`;
 
 		// Modal zoom state
 		const modalState: ZoomState = {
@@ -378,16 +525,19 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// Add zoom buttons
 		const zoomInBtn = document.createElement('button');
+		zoomInBtn.className = 'mermaid-zoom-btn';
 		zoomInBtn.textContent = '+';
 		this.styleButton(zoomInBtn);
 		zoomInBtn.addEventListener('click', () => this.zoom(modalContentWrapper, modalState, 1.2));
 
 		const zoomOutBtn = document.createElement('button');
+		zoomOutBtn.className = 'mermaid-zoom-btn';
 		zoomOutBtn.textContent = '-';
 		this.styleButton(zoomOutBtn);
 		zoomOutBtn.addEventListener('click', () => this.zoom(modalContentWrapper, modalState, 0.8));
 
 		const resetBtn = document.createElement('button');
+		resetBtn.className = 'mermaid-zoom-btn';
 		resetBtn.textContent = '⟲';
 		this.styleButton(resetBtn);
 		resetBtn.addEventListener('click', () => {
@@ -396,14 +546,7 @@ export default class MermaidZoomPlugin extends Plugin {
 
 		// Scale indicator
 		const scaleIndicator = document.createElement('span');
-		scaleIndicator.style.cssText = `
-			padding: 4px 8px;
-			font-size: 12px;
-			font-family: var(--font-ui-medium);
-			color: var(--text-muted);
-			min-width: 45px;
-			text-align: center;
-		`;
+		scaleIndicator.className = 'mermaid-zoom-scale';
 		modalState.scaleIndicator = scaleIndicator;
 
 		controls.appendChild(zoomInBtn);
@@ -485,18 +628,6 @@ export default class MermaidZoomPlugin extends Plugin {
 
 	private createControls(container: HTMLElement, contentWrapper: HTMLElement, state: ZoomState): () => void {
 		const controls = container.createDiv('mermaid-zoom-controls');
-		controls.style.cssText = `
-			position: absolute;
-			bottom: 10px;
-			right: 10px;
-			display: flex;
-			gap: 5px;
-			z-index: 100;
-			background: var(--background-secondary);
-			padding: 5px;
-			border-radius: 5px;
-			box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-		`;
 
 		// Zoom in button
 		const zoomInBtn = controls.createEl('button', {
@@ -535,14 +666,6 @@ export default class MermaidZoomPlugin extends Plugin {
 		const scaleIndicator = controls.createEl('span', {
 			cls: 'mermaid-zoom-scale'
 		});
-		scaleIndicator.style.cssText = `
-			padding: 4px 8px;
-			font-size: 12px;
-			font-family: var(--font-ui-medium);
-			color: var(--text-muted);
-			min-width: 45px;
-			text-align: center;
-		`;
 		state.scaleIndicator = scaleIndicator;
 		this.updateTransform(contentWrapper, state);
 
@@ -591,20 +714,8 @@ export default class MermaidZoomPlugin extends Plugin {
 	}
 
 	private styleButton(btn: HTMLButtonElement) {
-		btn.style.cssText = `
-			width: 28px;
-			height: 28px;
-			border: none;
-			background: var(--interactive-normal);
-			color: var(--text-normal);
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 16px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			transition: background 0.2s;
-		`;
+		btn.type = 'button';
+		btn.classList.add('mermaid-zoom-btn');
 	}
 
 	private addResizeHandles(container: HTMLElement, contentWrapper: HTMLElement, state: ZoomState): () => void {

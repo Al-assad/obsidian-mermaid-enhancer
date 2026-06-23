@@ -1,8 +1,63 @@
 /* Mermaid Zoom Plugin Styles */
 
+:root {
+	--mermaid-zoom-card-bg: #fdfdfd;
+	--mermaid-zoom-card-border: #e7e7e7;
+	--mermaid-zoom-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+	--mermaid-zoom-text: #3f3f46;
+	--mermaid-zoom-muted: #8a8a8a;
+	--mermaid-zoom-node-bg: #ffffff;
+	--mermaid-zoom-node-border: #e7e7e7;
+	--mermaid-zoom-edge: #777777;
+	--mermaid-zoom-control-bg: rgba(246, 246, 246, 0.86);
+	--mermaid-zoom-control-hover: rgba(232, 232, 232, 0.95);
+	--mermaid-zoom-control-border: rgba(0, 0, 0, 0.04);
+}
+
+.theme-dark {
+	--mermaid-zoom-card-bg: #181818;
+	--mermaid-zoom-card-border: #2c2c2c;
+	--mermaid-zoom-card-shadow: none;
+	--mermaid-zoom-text: #d8d8d8;
+	--mermaid-zoom-muted: #8f8f8f;
+	--mermaid-zoom-node-bg: #303030;
+	--mermaid-zoom-node-border: #3f3f3f;
+	--mermaid-zoom-edge: #9a9a9a;
+	--mermaid-zoom-control-bg: rgba(44, 44, 44, 0.86);
+	--mermaid-zoom-control-hover: rgba(58, 58, 58, 0.95);
+	--mermaid-zoom-control-border: rgba(255, 255, 255, 0.05);
+}
+
+.mermaid-zoom-container {
+	position: relative;
+	overflow: hidden;
+	width: 100%;
+	min-width: 150px;
+	min-height: 100px;
+	margin: 1em 0;
+	padding: 18px;
+	padding-bottom: 52px;
+	box-sizing: border-box;
+	background: var(--mermaid-zoom-card-bg);
+	border: 1px solid var(--mermaid-zoom-card-border);
+	border-radius: 12px;
+	box-shadow: var(--mermaid-zoom-card-shadow);
+}
+
 .mermaid-zoom-container svg,
 .mermaid-zoom-modal-wrapper svg {
 	display: block;
+}
+
+.mermaid-zoom-content,
+.mermaid-zoom-modal-wrapper {
+	width: fit-content;
+	transform-origin: 0 0;
+	transition: transform 0.1s ease-out;
+}
+
+.mermaid-zoom-modal-wrapper {
+	position: absolute;
 }
 
 /* Container cursor states */
@@ -12,6 +67,187 @@
 
 .mermaid-zoom-content.dragging {
 	cursor: grabbing;
+}
+
+.mermaid-zoom-controls,
+.mermaid-zoom-modal-controls {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	z-index: 100;
+	padding: 5px;
+	background: var(--background-secondary);
+	border-radius: 5px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.mermaid-zoom-controls {
+	bottom: 10px;
+	right: 10px;
+}
+
+.mermaid-zoom-modal-controls {
+	right: 20px;
+	bottom: 20px;
+	padding: 8px;
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.mermaid-zoom-btn {
+	width: 28px;
+	height: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
+	box-shadow: none;
+	transition: background 0.2s;
+}
+
+.mermaid-zoom-btn:hover {
+	background: var(--interactive-hover) !important;
+}
+
+.mermaid-zoom-btn svg {
+	width: 24px;
+	height: 24px;
+}
+
+.mermaid-zoom-scale {
+	min-width: 45px;
+	padding: 4px 8px;
+	color: var(--text-muted);
+	font-family: var(--font-ui-medium);
+	font-size: 12px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.mermaid-zoom-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	z-index: 9999;
+	display: flex;
+	flex-direction: column;
+	background: var(--mermaid-zoom-card-bg);
+}
+
+.mermaid-zoom-modal-header {
+	display: flex;
+	justify-content: flex-end;
+	padding: 12px 16px;
+	background: var(--mermaid-zoom-card-bg);
+	border-bottom: 1px solid var(--mermaid-zoom-card-border);
+}
+
+.mermaid-zoom-modal-close {
+	width: 32px;
+	height: 32px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	border-radius: 4px;
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	cursor: pointer;
+	font-size: 18px;
+	transition: background 0.2s;
+}
+
+.mermaid-zoom-modal-close:hover {
+	background: var(--interactive-hover) !important;
+}
+
+.mermaid-zoom-modal-content {
+	position: relative;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.mermaid-zoom-modal-zoom-container {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.mermaid-zoom-container .mermaid,
+.mermaid-zoom-modal-wrapper .mermaid {
+	background: transparent !important;
+}
+
+.mermaid-zoom-svg {
+	background: transparent !important;
+	color: var(--mermaid-zoom-text) !important;
+}
+
+.mermaid-zoom-svg .node rect,
+.mermaid-zoom-svg .node circle,
+.mermaid-zoom-svg .node ellipse,
+.mermaid-zoom-svg .node polygon,
+.mermaid-zoom-svg .node path {
+	fill: var(--mermaid-zoom-node-bg) !important;
+	stroke: var(--mermaid-zoom-node-border) !important;
+	stroke-width: 1px !important;
+}
+
+.mermaid-zoom-svg .cluster rect {
+	fill: transparent !important;
+	stroke: var(--mermaid-zoom-card-border) !important;
+}
+
+.mermaid-zoom-svg .edgePath .path,
+.mermaid-zoom-svg .flowchart-link,
+.mermaid-zoom-svg .messageLine0,
+.mermaid-zoom-svg .messageLine1,
+.mermaid-zoom-svg .loopLine,
+.mermaid-zoom-svg .relation {
+	stroke: var(--mermaid-zoom-edge) !important;
+}
+
+.mermaid-zoom-svg marker path,
+.mermaid-zoom-svg marker polygon {
+	fill: var(--mermaid-zoom-edge) !important;
+	stroke: var(--mermaid-zoom-edge) !important;
+}
+
+.mermaid-zoom-svg text,
+.mermaid-zoom-svg .label,
+.mermaid-zoom-svg .label text,
+.mermaid-zoom-svg .nodeLabel,
+.mermaid-zoom-svg .edgeLabel,
+.mermaid-zoom-svg .edgeLabel span,
+.mermaid-zoom-svg .cluster-label,
+.mermaid-zoom-svg .cluster-label span {
+	color: var(--mermaid-zoom-text) !important;
+	fill: var(--mermaid-zoom-text) !important;
+}
+
+.mermaid-zoom-svg .edgeLabel,
+.mermaid-zoom-svg .edgeLabel p,
+.mermaid-zoom-svg .edgeLabel rect,
+.mermaid-zoom-svg .labelBkg,
+.mermaid-zoom-svg .label-container,
+.mermaid-zoom-svg .label foreignObject,
+.mermaid-zoom-svg foreignObject div {
+	background: transparent !important;
+	fill: transparent !important;
 }
 
 /* Resizing cursor states */
@@ -33,16 +269,6 @@ body.mermaid-zoom-resizing-ns {
 body.mermaid-zoom-resizing-ew {
 	cursor: ew-resize !important;
 	user-select: none !important;
-}
-
-/* Modal close button hover */
-.mermaid-zoom-modal-close:hover {
-	background: var(--interactive-hover) !important;
-}
-
-/* Zoom button hover */
-.mermaid-zoom-btn:hover {
-	background: var(--interactive-hover) !important;
 }
 
 /* Fullscreen button padding */
